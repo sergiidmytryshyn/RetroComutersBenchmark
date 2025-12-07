@@ -1,45 +1,62 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
-def generate_benchmark_plot(csv_filepath="benchmark_results.csv"):
-    """
-    Reads benchmark results from a CSV, groups them by 'Machine', and plots
-    'Seconds' (Y-axis) against 'Loops' (X-axis) for each machine.
-    """
-    try:
-        df = pd.read_csv(csv_filepath)
-    except FileNotFoundError:
-        print(f"Error: The file '{csv_filepath}' was not found. Please ensure it is in the same directory.")
-        return
-    except pd.errors.EmptyDataError:
-        print("Error: The CSV file is empty.")
-        return
+def generate_benchmark_plots(csv_filepath="all_resuults.csv"):
+    df = pd.read_csv(csv_filepath)
+    
+    df = df.rename(columns={'Unnamed: 6': 'Seconds', 'FramesSeconds': 'Frames'})
 
-    plot_data = df.groupby(['Loops', 'Machine'])['Seconds'].mean().reset_index()
+    clean_rows = []
+    current_bench = None
 
-    plt.figure(figsize=(10, 6))
+    for index, row in df.iterrows():
+        run_val = str(row['Run']).strip()
+        
+        if run_val in ['Power', 'Sqrt', 'Str']:
+            current_bench = run_val
+            
+        if current_bench is None:
+            continue
+            
+        row_data = row.to_dict()
+        row_data['Benchmark'] = current_bench
+        clean_rows.append(row_data)
 
-    machines = plot_data['Machine'].unique()
+    clean_df = pd.DataFrame(clean_rows)
 
-    for machine in machines:
-        machine_data = plot_data[plot_data['Machine'] == machine]
+    clean_df['Loops'] = pd.to_numeric(clean_df['Loops'])
+    clean_df['Seconds'] = pd.to_numeric(clean_df['Seconds'])
 
-        plt.plot(
-            machine_data['Loops'],
-            machine_data['Seconds'],
-            marker='o',
-            linestyle='-',
-            label=f'{machine} (Avg Time)'
-        )
-
-    plt.title('Benchmark Performance: Time vs. Number of Loops', fontsize=16, fontweight='bold')
-    plt.xlabel('Number of Loops (Iterations)', fontsize=12)
-    plt.ylabel('Average Execution Time (Seconds)', fontsize=12)
-    plt.legend(title='Machine Type', loc='upper left')
-    plt.grid(True, linestyle='--', alpha=0.7)
-    plt.tight_layout()
-
-    plt.show()
+    benchmarks = ['Power', 'Sqrt', 'Str']
+    
+    for bench in benchmarks:
+        bench_data = clean_df[clean_df['Benchmark'] == bench]
+        
+        if bench_data.empty:
+            continue
+            
+        plt.figure(figsize=(10, 6))
+        
+        machines = bench_data['Machine'].unique()
+        
+        for machine in machines:
+            machine_data = bench_data[bench_data['Machine'] == machine]
+            
+            agg_data = machine_data.groupby('Loops')['Seconds'].mean().reset_index()
+            
+            agg_data = agg_data.sort_values('Loops')
+            
+            plt.plot(agg_data['Loops'], agg_data['Seconds'], marker='o', label=machine)
+        
+        plt.title(f'Benchmark: {bench} - Time vs Loops')
+        plt.xlabel('Number of Loops')
+        plt.ylabel('Time (Seconds)')
+        plt.legend()
+        plt.grid(True, linestyle='--', alpha=0.7)
+        plt.tight_layout()
+        
+        plt.savefig(f"{bench.lower()}_benchmark.png")
+        plt.show()
 
 if __name__ == "__main__":
-    generate_benchmark_plot()
+    generate_benchmark_plots()
